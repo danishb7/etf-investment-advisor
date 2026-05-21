@@ -30,7 +30,7 @@ jobs:
 
       - name: Run tests
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
           FRED_API_KEY: ""
           ML_ENABLED: "false"
         run: pytest -v
