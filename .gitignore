@@ -1,0 +1,42 @@
+# Environment (keep .env.example committed)
+.env
+.env.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Database & cache
+*.db
+*.sqlite
+*.sqlite3
+backend/data/cache/
+backend/advisor.db
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# ML artifacts
+backend/models/*.pkl
+backend/models/*.joblib
