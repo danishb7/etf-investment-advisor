@@ -28,8 +28,8 @@ A local-first US ETF investment advisor that learns your goals, scores ETFs with
 
 | Action | Command |
 |--------|---------|
-| **Start** | Double-click `run.bat` (opens backend + frontend in two windows) |
-| **Stop** | Double-click `stop.bat` (frees ports 8000 and 5173) |
+| **Start** | Double-click `run.bat` (one terminal; backend + frontend; Ctrl+C to stop) |
+| **Stop** | Double-click `stop.bat` (frees ports 8000 and 5173; window closes after 2s) |
 | **Tests** | Double-click `test.bat` |
 | **Open app** | [http://localhost:5173](http://localhost:5173) |
 

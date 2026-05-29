@@ -37,7 +37,7 @@ echo [3/3] Done.
 echo.
 echo Next steps:
 echo   1. Optional: edit backend\.env and set FRED_API_KEY
-echo   2. Double-click run.bat to start the app
-echo   3. Double-click stop.bat to shut down
+echo   2. Double-click run.bat to start the app (one window)
+echo   3. Double-click stop.bat to shut down, or press Ctrl+C in the run window
 echo.
 pause
