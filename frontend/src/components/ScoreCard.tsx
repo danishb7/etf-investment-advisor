@@ -46,6 +46,8 @@ export function ScoreCard({ etf, index = 0 }: { etf: ETFRecommendation; index?: 
         <BreakdownBar label="Expense" value={bd.expense} />
         <BreakdownBar label="Macro fit" value={bd.macro_fit} />
         <BreakdownBar label="Sentiment" value={bd.sentiment} />
+        {(bd.esg_fit ?? 0) > 0 && <BreakdownBar label="ESG boost" value={bd.esg_fit!} />}
+        {(bd.shariah_fit ?? 0) > 0 && <BreakdownBar label="Shariah boost" value={bd.shariah_fit!} />}
       </div>
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="px-2 py-0.5 rounded-full bg-muted">Score {etf.final_score.toFixed(0)}</span>

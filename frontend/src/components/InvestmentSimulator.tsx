@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2, Play, RefreshCw } from "lucide-react";
 import { api, type InvestmentScenario } from "@/api/client";
 import { AnimatedCard } from "./ui/AnimatedCard";
+import { InlineError } from "./ui/InlineError";
 import { PriceChart } from "./PriceChart";
 import { TickerSearch } from "./TickerSearch";
 
@@ -23,6 +24,7 @@ export function InvestmentSimulator() {
   const [scenarios, setScenarios] = useState<InvestmentScenario[]>([]);
   const [selected, setSelected] = useState<InvestmentScenario | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "My investment plan",
     start_date: "2020-01-01",
@@ -55,10 +57,11 @@ export function InvestmentSimulator() {
 
   const saveAndRun = async () => {
     if (Math.abs(allocSum - 100) > 0.5) {
-      alert(`Allocations must sum to 100% (currently ${allocSum.toFixed(1)}%)`);
+      setError(`Allocations must sum to 100% (currently ${allocSum.toFixed(1)}%)`);
       return;
     }
     setLoading(true);
+    setError("");
     try {
       const created = await api.createInvestmentScenario({
         name: form.name,
@@ -77,7 +80,7 @@ export function InvestmentSimulator() {
       setSelected(created);
       load();
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -85,12 +88,13 @@ export function InvestmentSimulator() {
 
   const rerun = async (id: number) => {
     setLoading(true);
+    setError("");
     try {
       const updated = await api.runInvestmentScenario(id);
       setSelected(updated);
       load();
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -106,6 +110,7 @@ export function InvestmentSimulator() {
 
   return (
     <div className="space-y-8">
+      <InlineError message={error} />
       <AnimatedCard>
         <h2 className="text-xl font-semibold mb-1">Investment Simulator</h2>
         <p className="text-sm text-muted-foreground mb-6">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { api } from "@/api/client";
+import { InlineError } from "@/components/ui/InlineError";
 import { PageTransition } from "@/components/ui/PageTransition";
 
 const STEPS = [
@@ -25,6 +26,7 @@ const STEPS = [
 export function Onboarding() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     lump_sum: 5000,
     monthly_sip: 200,
@@ -39,12 +41,13 @@ export function Onboarding() {
 
   const submit = async () => {
     setLoading(true);
+    setError("");
     try {
       await api.updateProfile({ ...form, onboarding_complete: true });
       await api.prefetch().catch(() => {});
       window.location.href = "/";
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -55,6 +58,7 @@ export function Onboarding() {
   return (
     <PageTransition>
       <div className="max-w-lg mx-auto">
+        <InlineError message={error} />
         <h1 className="text-3xl font-bold mb-2">Welcome</h1>
         <p className="text-muted-foreground mb-8">Let&apos;s set up your investor profile in a few steps.</p>
 

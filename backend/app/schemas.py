@@ -22,6 +22,19 @@ class ProfileResponse(ProfileUpdate):
     updated_at: datetime | None = None
 
 
+class ProfilePatch(BaseModel):
+    lump_sum: float | None = None
+    monthly_sip: float | None = None
+    horizon_months: int | None = None
+    risk_tolerance: str | None = None
+    goal: str | None = None
+    tax_bracket: str | None = None
+    max_expense_ratio: float | None = None
+    exclude_sectors: str | None = None
+    esg_preference: bool | None = None
+    onboarding_complete: bool | None = None
+
+
 class ScoreBreakdown(BaseModel):
     momentum: float
     sharpe: float
@@ -30,6 +43,8 @@ class ScoreBreakdown(BaseModel):
     dividend: float = 0
     macro_fit: float = 0
     sentiment: float = 0
+    esg_fit: float = 0
+    shariah_fit: float = 0
     ml: float | None = None
 
 
@@ -58,6 +73,8 @@ class RecommendResponse(BaseModel):
     estimated_volatility: float | None
     sector_exposure: dict[str, float]
     run_id: int | None = None
+    cached: bool = False
+    generated_at: datetime | None = None
 
 
 class HistoricalSimRequest(BaseModel):

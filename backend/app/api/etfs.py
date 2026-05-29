@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -12,20 +14,15 @@ from app.services.market_data import (
 )
 from app.services.universe import load_universe
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/etfs", tags=["etfs"])
 
 
 @router.get("")
-def list_etfs(db: Session = Depends(get_db)):
-    items = []
-    for etf in load_universe():
-        fund = {}
-        try:
-            fund = fetch_fundamentals(etf["ticker"], db)
-        except Exception:
-            pass
-        items.append({**etf, **fund})
-    return {"etfs": items, "count": len(items)}
+def list_etfs():
+    universe = load_universe()
+    return {"etfs": universe, "count": len(universe)}
 
 
 @router.post("/prefetch")
@@ -66,7 +63,8 @@ def search_etfs(q: str = Query(..., min_length=1, max_length=10), db: Session = 
                     **fund,
                     "has_data": not hist.empty,
                 }
-        except Exception:
+        except Exception as exc:
+            logger.warning("etf search lookup failed ticker=%s: %s", query, exc)
             lookup = None
 
     return {"query": query, "curated": curated, "lookup": lookup}

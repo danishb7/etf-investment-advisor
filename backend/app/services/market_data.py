@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta
 
 import numpy as np
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.models import FundamentalCache, PriceCache
 from app.services.universe import load_universe
+
+logger = logging.getLogger(__name__)
 
 PERIOD_MAP = {
     "1m": "1mo",
@@ -36,6 +39,7 @@ def fetch_history(ticker: str, period: str = "1y", db: Session | None = None) ->
             .first()
         )
         if cached and _cache_fresh(cached.fetched_at):
+            logger.debug("price cache HIT ticker=%s period=%s", ticker, period)
             records = json.loads(cached.data_json)
             df = pd.DataFrame(records)
             if not df.empty and "Date" in df.columns:
@@ -46,6 +50,7 @@ def fetch_history(ticker: str, period: str = "1y", db: Session | None = None) ->
                 return df.set_index(df.columns[0])
             return df
 
+    logger.info("price cache MISS ticker=%s period=%s", ticker, period)
     t = yf.Ticker(ticker.upper())
     hist = t.history(period=yf_period, auto_adjust=True)
     if hist.empty:
@@ -92,8 +97,10 @@ def fetch_fundamentals(ticker: str, db: Session | None = None) -> dict:
     if db:
         cached = db.query(FundamentalCache).filter(FundamentalCache.ticker == ticker.upper()).first()
         if cached and _cache_fresh(cached.fetched_at):
+            logger.debug("fundamental cache HIT ticker=%s", ticker)
             return json.loads(cached.data_json)
 
+    logger.info("fundamental cache MISS ticker=%s", ticker)
     t = yf.Ticker(ticker.upper())
     info = t.info
     data = {
@@ -126,7 +133,8 @@ def prefetch_universe(db: Session) -> int:
             fetch_history(etf["ticker"], "1y", db)
             fetch_fundamentals(etf["ticker"], db)
             count += 1
-        except Exception:
+        except Exception as exc:
+            logger.warning("prefetch failed ticker=%s: %s", etf["ticker"], exc)
             continue
     return count
 

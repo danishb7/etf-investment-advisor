@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,6 +8,8 @@ from app.database import get_db
 from app.models.models import PaperPosition
 from app.schemas import PaperPositionCreate, PaperPositionResponse
 from app.services.market_data import fetch_history, fetch_quote
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/paper-positions", tags=["paper"])
 
@@ -26,8 +29,8 @@ def list_positions(db: Session = Depends(get_db)):
             hist = fetch_history(p.ticker, "3m", db)
             if not hist.empty:
                 spark = hist["Close"].astype(float).tail(30).tolist()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("paper sparkline failed ticker=%s: %s", p.ticker, exc)
         result.append(
             PaperPositionResponse(
                 id=p.id,

@@ -16,6 +16,8 @@ dist/
 build/
 .pytest_cache/
 .mypy_cache/
+.coverage
+htmlcov/
 
 # Database & cache
 *.db

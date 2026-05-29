@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta
 
 import feedparser
@@ -6,6 +7,8 @@ from sqlalchemy.orm import Session
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from app.models.models import SentimentCache
+
+logger = logging.getLogger(__name__)
 
 RSS_FEEDS = [
     ("rates", "https://www.federalreserve.gov/feeds/press_all.xml"),
@@ -75,7 +78,8 @@ def fetch_sentiment(db: Session, force: bool = False) -> dict:
                     "compound": round(compound, 3),
                     "published": entry.get("published", ""),
                 })
-        except Exception:
+        except Exception as exc:
+            logger.warning("sentiment feed failed url=%s: %s", url, exc)
             continue
 
     themes_result = {}
