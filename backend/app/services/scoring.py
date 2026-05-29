@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 RISK_VOL_CAP = {"conservative": 12, "balanced": 18, "aggressive": 28}
 ESG_BOOST = 12
-SHARIAH_BOOST = 5
+SHARIAH_BOOST = 2
 CORRELATION_THRESHOLD = 0.92
 
 

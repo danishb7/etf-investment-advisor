@@ -165,7 +165,7 @@ Frontend unit tests: `cd frontend && npm test` (Vitest).
 ### Scoring preferences
 
 - **ESG** (`esg_preference` on profile): +12 boost for ETFs tagged `esg: true` in the curated universe (e.g. ESGV, ESGU, SUSL, VSGX).
-- **Shariah**: +5 boost always for shariah-tagged funds (SPUS, HLAL, MNZL, SPTE, SPWO).
+- **Shariah**: +2 modest boost always for shariah-tagged funds (SPUS, HLAL, MNZL, SPTE, SPWO).
 
 Set `RECOMMENDATION_TTL_MINUTES=60` in `backend/.env` to control how long cached recommendations are reused.
 
