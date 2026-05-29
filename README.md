@@ -6,7 +6,7 @@ A local-first US ETF investment advisor that learns your goals, scores ETFs with
 
 ## Features
 
-- Investor onboarding (budget, SIP, horizon, risk, goals)
+- 4-step investor onboarding (budget, SIP, horizon, risk & goals, expense/sector preferences)
 - Rule-based ETF scoring with explainable breakdowns (momentum, Sharpe, volatility, expense, macro, sentiment)
 - Optional ML ranking (off by default; enable with `ML_ENABLED=true` after training)
 - FRED macro overlay + RSS/VADER sentiment
@@ -14,6 +14,7 @@ A local-first US ETF investment advisor that learns your goals, scores ETFs with
 - ETF universe browser, ticker search, and detail pages with adjustable-period charts
 - **Simulate** page: investment plans (multi-ETF backtest), historical what-if, paper holdings, forward Monte Carlo
 - Portfolio tracker, rebalancing alerts, tax-loss hints, watchlist
+- ESG preference toggle in Settings (+12 score boost for tagged ETFs when enabled)
 - Minimal aesthetic UI with dark mode and subtle animations
 
 ## Prerequisites
@@ -28,7 +29,7 @@ A local-first US ETF investment advisor that learns your goals, scores ETFs with
 
 | Action | Command |
 |--------|---------|
-| **Start** | Double-click `run.bat` (one terminal; backend + frontend; Ctrl+C to stop) |
+| **Start** | Double-click `run.bat` (runs `scripts\dev.ps1`; one terminal; backend + frontend; Ctrl+C to stop) |
 | **Stop** | Double-click `stop.bat` (frees ports 8000 and 5173; window closes after 2s) |
 | **Tests** | Double-click `test.bat` |
 | **Open app** | [http://localhost:5173](http://localhost:5173) |
@@ -61,6 +62,12 @@ npm run dev
 ```
 
 Open [http://localhost:5173](http://localhost:5173) and complete onboarding.
+
+From the repo root (same as `run.bat`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\dev.ps1
+```
 
 ### FRED API key (optional)
 
@@ -101,13 +108,13 @@ Backend: [http://127.0.0.1:8000](http://127.0.0.1:8000) · Frontend: [http://loc
 
 | Route | Purpose |
 |-------|---------|
-| `/onboarding` | First-time investor profile wizard |
+| `/onboarding` | 4-step profile wizard (budget → horizon → risk & goals → preferences) |
 | `/` | Dashboard: recommendations, allocation chart, macro & sentiment |
 | `/etfs` | Curated ETF universe list |
 | `/etfs/:ticker` | ETF detail: price chart, stats, quote refresh |
 | `/simulate` | Investment simulator, historical what-if, paper positions, Monte Carlo |
 | `/portfolio` | Holdings, rebalancing, tax hints, watchlist |
-| `/settings` | Edit profile |
+| `/settings` | Edit profile, ESG preference, recommendation history, re-run onboarding |
 
 ## API
 
@@ -115,9 +122,9 @@ Backend: [http://127.0.0.1:8000](http://127.0.0.1:8000) · Frontend: [http://loc
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check (`ml_enabled` flag) |
 | `GET` / `PUT` | `/api/profile` | Investor profile |
-| `GET` | `/api/recommend?force=` | Recommendations (cached up to `RECOMMENDATION_TTL_MINUTES`, invalidated when profile changes) |
-| `POST` | `/api/recommend` | Regenerate recommendations (Refresh) |
-| `GET` | `/api/recommend/history` | Past recommendation runs |
+| `GET` | `/api/recommend?force=` | Recommendations (cached up to `RECOMMENDATION_TTL_MINUTES`, invalidated when profile changes; requires completed onboarding) |
+| `POST` | `/api/recommend` | Regenerate recommendations (Refresh; requires completed onboarding) |
+| `GET` | `/api/recommend/history?limit=` | Past recommendation runs (default limit 10) |
 | `GET` | `/api/etfs` | Curated universe list |
 | `GET` | `/api/etfs/search?q=` | Search curated + optional Yahoo lookup |
 | `POST` | `/api/etfs/prefetch` | Warm price cache for universe |
@@ -133,12 +140,34 @@ Backend: [http://127.0.0.1:8000](http://127.0.0.1:8000) · Frontend: [http://loc
 | `DELETE` | `/api/portfolio/{id}` | Remove holding |
 | `GET` | `/api/portfolio/rebalance` | Drift vs last recommendation |
 | `GET` | `/api/portfolio/tax-hints` | Informational tax-loss hints |
-| `GET` / `POST` / `DELETE` | `/api/watchlist` | Watchlist tickers |
+| `GET` / `POST` | `/api/watchlist` | List / add watchlist tickers |
+| `DELETE` | `/api/watchlist/{ticker}` | Remove watchlist ticker |
 | `GET` / `POST` | `/api/investment-simulator` | List / create saved investment plans |
 | `GET` / `PUT` / `DELETE` | `/api/investment-simulator/{id}` | Get / update / delete plan |
 | `POST` | `/api/investment-simulator/{id}/run` | Re-run backtest for a plan |
 
 Interactive docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### Scoring preferences
+
+- **ESG** (`esg_preference` on profile): +12 boost for ETFs tagged `esg: true` in the curated universe (e.g. ESGV, ESGU, SUSL, VSGX).
+- **Shariah**: +2 modest boost always for shariah-tagged funds (SPUS, HLAL, MNZL, SPTE, SPWO).
+
+## Configuration
+
+Copy `backend/.env.example` to `backend/.env` and adjust as needed:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FRED_API_KEY` | *(empty)* | FRED macro data (optional) |
+| `DATABASE_URL` | `sqlite:///./advisor.db` | SQLite connection string |
+| `ML_ENABLED` | `false` | Blend trained ML scores into recommendations |
+| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed browser origins |
+| `PRICE_CACHE_TTL_MINUTES` | `60` | Yahoo price/fundamental cache TTL |
+| `RECOMMENDATION_TTL_MINUTES` | `60` | Recommendation cache TTL (invalidated when profile changes) |
+| `REBALANCE_DRIFT_THRESHOLD` | `5.0` | Portfolio drift alert threshold (%) |
+
+Macro snapshots are cached for 24 hours; sentiment for 6 hours (not configurable via `.env`).
 
 ## Tests
 
@@ -162,20 +191,13 @@ GitHub Actions runs `pytest` with coverage (`--cov-fail-under=80`) on every push
 
 Frontend unit tests: `cd frontend && npm test` (Vitest).
 
-### Scoring preferences
-
-- **ESG** (`esg_preference` on profile): +12 boost for ETFs tagged `esg: true` in the curated universe (e.g. ESGV, ESGU, SUSL, VSGX).
-- **Shariah**: +2 modest boost always for shariah-tagged funds (SPUS, HLAL, MNZL, SPTE, SPWO).
-
-Set `RECOMMENDATION_TTL_MINUTES=60` in `backend/.env` to control how long cached recommendations are reused.
-
 ## Troubleshooting
 
 | Issue | What to try |
 |-------|-------------|
 | `'uvicorn' is not recognized` | Use `venv\Scripts\python.exe -m uvicorn` (as in `run.bat`), or recreate venv: delete `backend\venv`, run `setup.bat` |
 | Macro `available: false` after adding FRED key | Open `/api/macro?force=true`, then restart backend; stale 24h cache is bypassed when key is set but cache was empty |
-| Backend reload spam / tracebacks in terminal | `run.bat` excludes `tests/` and `scripts/` from reload; restart with `stop.bat` + `run.bat` if needed |
+| Backend reload spam / tracebacks in terminal | Restart with `stop.bat` then `run.bat`. Docker Compose excludes `tests/` and `scripts/` from reload; local `run.bat` does not |
 | Moved or renamed project folder | Delete `backend\venv` and run `setup.bat` again |
 
 ## Security
