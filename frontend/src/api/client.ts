@@ -244,8 +244,12 @@ export interface InvestmentScenario {
     return_pct: number;
     max_drawdown: number;
     series: { date: string; value: number; invested: number }[];
-    contributions: { date: string; amount: number; buys: unknown[] }[];
-    holdings: { ticker: string; shares: number; value: number }[];
+    contributions: {
+      date: string;
+      amount: number;
+      buys: { ticker: string; amount: number; price: number; shares: number }[];
+    }[];
+    holdings: { ticker: string; shares: number; value: number; last_price?: number }[];
   } | null;
   total_invested: number | null;
   final_value: number | null;
