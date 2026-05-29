@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import type { InvestmentScenario } from "@/api/client";
 import {
   aggregateInvestedByTicker,
@@ -22,22 +23,44 @@ export function InvestmentSimulatorPlanCard({ scenario, selected, onSelect }: Pr
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
+      aria-pressed={selected}
+      aria-label={
+        selected
+          ? `${scenario.name}, currently showing details`
+          : `View details for ${scenario.name}`
+      }
+      className={`group w-full text-left px-4 py-3 rounded-lg border transition-colors ${
         selected ? "border-accent bg-accent/5 ring-1 ring-accent/30" : "border-border hover:bg-muted/50"
       }`}
     >
       <div className="flex justify-between items-start gap-2">
-        <span className="font-medium">{scenario.name}</span>
-        {scenario.return_pct != null && (
-          <span
-            className={`text-sm font-semibold shrink-0 ${
-              scenario.return_pct >= 0 ? "text-positive" : "text-negative"
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate">{scenario.name}</span>
+          {selected && (
+            <span className="shrink-0 text-[10px] uppercase tracking-wide font-medium text-accent px-1.5 py-0.5 rounded bg-accent/10">
+              Active
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {scenario.return_pct != null && (
+            <span
+              className={`text-sm font-semibold ${
+                scenario.return_pct >= 0 ? "text-positive" : "text-negative"
+              }`}
+            >
+              {scenario.return_pct > 0 ? "+" : ""}
+              {scenario.return_pct}%
+            </span>
+          )}
+          <ChevronRight
+            size={18}
+            className={`text-muted-foreground transition-transform duration-200 ${
+              selected ? "rotate-90 text-accent" : "group-hover:translate-x-0.5"
             }`}
-          >
-            {scenario.return_pct > 0 ? "+" : ""}
-            {scenario.return_pct}%
-          </span>
-        )}
+            aria-hidden
+          />
+        </div>
       </div>
 
       <p className="text-xs text-muted-foreground mt-1">{formatDateRange(scenario)}</p>
@@ -75,8 +98,6 @@ export function InvestmentSimulatorPlanCard({ scenario, selected, onSelect }: Pr
           {scenario.final_value != null && ` → $${scenario.final_value.toLocaleString()} final`}
         </p>
       )}
-
-      <p className="text-xs mt-2 text-accent/80">Click for full details and chart</p>
     </button>
   );
 }
