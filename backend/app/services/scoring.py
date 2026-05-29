@@ -1,5 +1,7 @@
 import json
-from datetime import datetime
+import logging
+import time
+from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,11 @@ from app.services.market_data import compute_stats, fetch_fundamentals, fetch_hi
 from app.services.sentiment import fetch_sentiment, sentiment_adjustment
 from app.services.universe import load_universe
 
+logger = logging.getLogger(__name__)
+
 RISK_VOL_CAP = {"conservative": 12, "balanced": 18, "aggressive": 28}
+ESG_BOOST = 12
+SHARIAH_BOOST = 2
 CORRELATION_THRESHOLD = 0.92
 
 
@@ -66,6 +72,22 @@ def _dividend_score(div_yield: float | None, goal: str) -> float:
     return max(0, min(100, 40 + dy * 15))
 
 
+def _is_shariah(etf: dict) -> bool:
+    return bool(etf.get("shariah")) or etf.get("category") == "shariah"
+
+
+def _apply_preference_boosts(final_score: float, etf: dict, profile: InvestorProfile) -> tuple[float, float, float]:
+    esg_fit = 0.0
+    shariah_fit = 0.0
+    if profile.esg_preference and etf.get("esg"):
+        final_score = min(100.0, final_score + ESG_BOOST)
+        esg_fit = float(ESG_BOOST)
+    if _is_shariah(etf):
+        final_score = min(100.0, final_score + SHARIAH_BOOST)
+        shariah_fit = float(SHARIAH_BOOST)
+    return final_score, esg_fit, shariah_fit
+
+
 def _build_explanation(breakdown: ScoreBreakdown, etf: dict, sentiment_label: str) -> str:
     parts = [
         f"{etf['name']} ({etf['ticker']}) fits your {etf['category'].replace('_', ' ')} allocation.",
@@ -73,6 +95,10 @@ def _build_explanation(breakdown: ScoreBreakdown, etf: dict, sentiment_label: st
         f"risk-adjusted returns score {breakdown.sharpe:.0f}/100",
         f"expense score {breakdown.expense:.0f}/100",
     ]
+    if breakdown.esg_fit > 0:
+        parts.append("ESG preference boost applied")
+    if breakdown.shariah_fit > 0:
+        parts.append("Shariah-compliant fund")
     if sentiment_label:
         parts.append(sentiment_label)
     return " ".join(parts) + "."
@@ -138,6 +164,7 @@ def _allocate(top: list[dict], profile: InvestorProfile) -> list[dict]:
 
 
 def run_recommendations(db: Session, profile: InvestorProfile) -> RecommendResponse:
+    start = time.perf_counter()
     macro = fetch_macro(db)
     sentiment_data = fetch_sentiment(db)
     themes = sentiment_data.get("themes", {})
@@ -185,6 +212,8 @@ def run_recommendations(db: Session, profile: InvestorProfile) -> RecommendRespo
                 ml_s = get_ml_score(etf, stats, macro)
                 final_score = rule_score * 0.7 + ml_s * 0.3
 
+            final_score, esg_fit, shariah_fit = _apply_preference_boosts(final_score, etf, profile)
+
             scored.append({
                 **etf,
                 "rule_score": round(rule_score, 2),
@@ -197,12 +226,15 @@ def run_recommendations(db: Session, profile: InvestorProfile) -> RecommendRespo
                     "dividend": round(div, 1),
                     "macro_fit": round(macro_s, 1),
                     "sentiment": round(sent_s, 1),
+                    "esg_fit": esg_fit,
+                    "shariah_fit": shariah_fit,
                 },
                 "stats": stats,
                 "fund": fund,
                 "sentiment_label": sent_label,
             })
-        except Exception:
+        except Exception as exc:
+            logger.warning("scoring skipped ticker=%s: %s", ticker, exc)
             continue
 
     scored.sort(key=lambda x: x["final_score"], reverse=True)
@@ -298,4 +330,14 @@ def run_recommendations(db: Session, profile: InvestorProfile) -> RecommendRespo
         db.add(LastRecommendation(allocations_json=json.dumps(alloc_map)))
     db.commit()
 
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "recommend complete run_id=%s scored=%d selected=%d duration_ms=%.0f cached=false",
+        run.id,
+        len(scored),
+        len(recommendations),
+        duration_ms,
+    )
+    response.cached = False
+    response.generated_at = datetime.now(timezone.utc)
     return response

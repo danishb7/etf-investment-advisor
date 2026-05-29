@@ -29,7 +29,7 @@ if not exist "frontend\node_modules" (
 )
 
 echo Starting backend  (http://127.0.0.1:8000) ...
-start "ETF Advisor - Backend" cmd /k "cd /d "%~dp0backend" && venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000"
+start "ETF Advisor - Backend" cmd /k "cd /d "%~dp0backend" && venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --reload-exclude "tests/*" --reload-exclude "scripts/*""
 
 echo Waiting for backend to initialize...
 timeout /t 3 /nobreak >nul

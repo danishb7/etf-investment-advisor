@@ -1,42 +1,68 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { api, type RecommendResponse } from "@/api/client";
+import { api } from "@/api/client";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedCard } from "@/components/ui/AnimatedCard";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { InlineError } from "@/components/ui/InlineError";
 import { AllocationChart } from "@/components/AllocationChart";
 import { ScoreCard } from "@/components/ScoreCard";
 
+function formatCacheLabel(cached?: boolean, generatedAt?: string | null): string {
+  if (!generatedAt) return "";
+  const at = new Date(generatedAt);
+  const mins = Math.floor((Date.now() - at.getTime()) / 60000);
+  const age =
+    mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.floor(mins / 60)} hr ago`;
+  if (cached) return `Updated ${age} · Cached`;
+  return "Just updated";
+}
+
 export function Dashboard() {
-  const [data, setData] = useState<RecommendResponse | null>(null);
+  const queryClient = useQueryClient();
   const [macro, setMacro] = useState<Record<string, unknown> | null>(null);
   const [sentiment, setSentiment] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const load = async () => {
-    setLoading(true);
-    setError("");
-    try {
+  const {
+    data,
+    isLoading,
+    error,
+    isFetching,
+  } = useQuery({
+    queryKey: ["recommend"],
+    queryFn: async () => {
       const [rec, m, s] = await Promise.all([
-        api.recommend(),
+        api.getRecommend(),
         api.getMacro(true).catch(() => null),
         api.getSentiment().catch(() => null),
       ]);
-      setData(rec);
       setMacro(m);
       setSentiment(s);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  };
+      return rec;
+    },
+  });
 
-  useEffect(() => {
-    load();
-  }, []);
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const rec = await api.refreshRecommend();
+      const [m, s] = await Promise.all([
+        api.getMacro(true).catch(() => null),
+        api.getSentiment().catch(() => null),
+      ]);
+      setMacro(m);
+      setSentiment(s);
+      return rec;
+    },
+    onSuccess: (rec) => {
+      queryClient.setQueryData(["recommend"], rec);
+    },
+  });
+
+  const loading = isLoading || refreshMutation.isPending;
+  const errorMessage =
+    (error as Error | null)?.message || (refreshMutation.error as Error | null)?.message || "";
 
   const pieData =
     data?.recommendations.map((r) => ({
@@ -44,16 +70,21 @@ export function Dashboard() {
       value: r.allocation_pct,
     })) ?? [];
 
+  const cacheLabel = formatCacheLabel(data?.cached, data?.generated_at);
+
   return (
     <PageTransition>
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold">Your portfolio</h1>
           <p className="text-muted-foreground mt-1">Personalized ETF recommendations</p>
+          {cacheLabel && !loading && (
+            <p className="text-xs text-muted-foreground mt-1">{cacheLabel}</p>
+          )}
         </div>
         <button
-          onClick={load}
-          disabled={loading}
+          onClick={() => refreshMutation.mutate()}
+          disabled={loading || isFetching}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-accent-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
         >
           <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
@@ -61,15 +92,11 @@ export function Dashboard() {
         </button>
       </div>
 
-      {error && (
-        <div className="mb-6 p-4 rounded-lg bg-negative/10 text-negative text-sm">
-          {error}
-          {error.includes("onboarding") && (
-            <Link to="/onboarding" className="block mt-2 underline">
-              Complete onboarding
-            </Link>
-          )}
-        </div>
+      <InlineError message={errorMessage} />
+      {errorMessage.includes("onboarding") && (
+        <Link to="/onboarding" className="block -mt-4 mb-6 text-sm underline text-negative">
+          Complete onboarding
+        </Link>
       )}
 
       {loading && (

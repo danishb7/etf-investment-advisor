@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api } from "@/api/client";
+import { InlineError } from "@/components/ui/InlineError";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedCard } from "@/components/ui/AnimatedCard";
 import { PriceChart } from "@/components/PriceChart";
@@ -38,6 +39,7 @@ export function Simulate() {
   } | null>(null);
   const [profile, setProfile] = useState<{ monthly_sip: number; lump_sum: number; horizon_months: number } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const loadPaper = () => api.listPaper().then(setPaper);
 
@@ -48,28 +50,31 @@ export function Simulate() {
 
   const runHistorical = async () => {
     setLoading(true);
+    setError("");
     try {
       const r = await api.historicalSim({ ticker, amount, start_date: startDate });
       setHistResult(r);
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
   const addPaper = async () => {
+    setError("");
     try {
       await api.createPaper({ ticker: paperTicker, amount_invested: paperAmount });
       loadPaper();
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     }
   };
 
   const runForward = async () => {
     if (!profile) return;
     setLoading(true);
+    setError("");
     try {
       const r = await api.forwardSim({
         monthly_amount: profile.monthly_sip,
@@ -79,7 +84,7 @@ export function Simulate() {
       });
       setForwardResult(r);
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -96,6 +101,8 @@ export function Simulate() {
     <PageTransition>
       <h1 className="text-3xl font-bold mb-2">Simulate</h1>
       <p className="text-muted-foreground mb-6">Explore how investments could have performed</p>
+
+      <InlineError message={error} />
 
       <div className="flex gap-2 mb-8 flex-wrap">
         {tabs.map((t) => (

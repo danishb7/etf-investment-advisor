@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.models import InvestorProfile
-from app.schemas import ProfileResponse, ProfileUpdate
+from app.schemas import ProfilePatch, ProfileResponse
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
 
@@ -38,9 +38,9 @@ def get_profile(db: Session = Depends(get_db)):
 
 
 @router.put("", response_model=ProfileResponse)
-def update_profile(body: ProfileUpdate, db: Session = Depends(get_db)):
+def update_profile(body: ProfilePatch, db: Session = Depends(get_db)):
     p = _get_or_create(db)
-    for field, value in body.model_dump().items():
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(p, field, value)
     db.commit()
     db.refresh(p)

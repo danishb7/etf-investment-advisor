@@ -1,8 +1,11 @@
 """Optional ML layer — off by default (ML_ENABLED=false)."""
 
+import logging
 from pathlib import Path
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 MODEL_PATH = Path(__file__).parent.parent.parent / "models" / "etf_ranker.joblib"
 _model = None
@@ -37,7 +40,8 @@ def get_ml_score(etf: dict, stats: dict, macro: dict) -> float:
         if hasattr(pred, "__len__"):
             pred = pred[0]
         return max(0, min(100, float(pred)))
-    except Exception:
+    except Exception as exc:
+        logger.warning("ml predict failed ticker=%s: %s", etf.get("ticker"), exc)
         return _heuristic_ml(etf, stats, macro)
 
 
@@ -75,7 +79,8 @@ def train_model(db) -> dict:
                 1 if etf["category"] == "sector" else 0,
             ])
             y.append(forward.get("return_pct", 0) + forward.get("sharpe_ratio", 0) * 10)
-        except Exception:
+        except Exception as exc:
+            logger.warning("ml train skipped ticker=%s: %s", etf.get("ticker"), exc)
             continue
 
     if len(X) < 10:

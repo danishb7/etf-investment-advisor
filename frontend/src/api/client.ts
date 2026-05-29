@@ -1,5 +1,24 @@
 const BASE = "/api";
 
+type ValidationErrorItem = { msg?: string; loc?: unknown[]; type?: string };
+
+export function formatApiError(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        const d = item as ValidationErrorItem;
+        return d.msg ?? JSON.stringify(item);
+      })
+      .join("; ");
+  }
+  if (detail && typeof detail === "object" && "msg" in detail) {
+    return String((detail as ValidationErrorItem).msg);
+  }
+  return fallback;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -7,7 +26,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || res.statusText);
+    throw new Error(formatApiError(err.detail, res.statusText));
   }
   return res.json();
 }
@@ -35,6 +54,8 @@ export interface ScoreBreakdown {
   dividend: number;
   macro_fit: number;
   sentiment: number;
+  esg_fit?: number;
+  shariah_fit?: number;
   ml?: number;
 }
 
@@ -63,6 +84,8 @@ export interface RecommendResponse {
   estimated_volatility: number | null;
   sector_exposure: Record<string, number>;
   run_id: number | null;
+  cached?: boolean;
+  generated_at?: string | null;
 }
 
 export const api = {
@@ -70,7 +93,9 @@ export const api = {
   updateProfile: (data: Partial<Profile>) =>
     request<Profile>("/profile", { method: "PUT", body: JSON.stringify(data) }),
 
-  recommend: () => request<RecommendResponse>("/recommend", { method: "POST" }),
+  getRecommend: (force = false) =>
+    request<RecommendResponse>(`/recommend?force=${force}`),
+  refreshRecommend: () => request<RecommendResponse>("/recommend", { method: "POST" }),
   recommendHistory: () => request<{ runs: { id: number; created_at: string; preview: unknown[] }[] }>("/recommend/history"),
 
   listEtfs: () => request<{ etfs: { ticker: string; name: string; category: string; sector: string }[] }>("/etfs"),
@@ -219,8 +244,12 @@ export interface InvestmentScenario {
     return_pct: number;
     max_drawdown: number;
     series: { date: string; value: number; invested: number }[];
-    contributions: { date: string; amount: number; buys: unknown[] }[];
-    holdings: { ticker: string; shares: number; value: number }[];
+    contributions: {
+      date: string;
+      amount: number;
+      buys: { ticker: string; amount: number; price: number; shares: number }[];
+    }[];
+    holdings: { ticker: string; shares: number; value: number; last_price?: number }[];
   } | null;
   total_invested: number | null;
   final_value: number | null;

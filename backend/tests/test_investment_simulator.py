@@ -68,6 +68,24 @@ def test_run_backtest_validation_errors(db):
 
 
 @patch("app.services.investment_simulator.fetch_history")
+def test_run_backtest_without_end_date_tz_aware_prices(mock_fetch, db):
+    hist = _mock_history()
+    hist.index = hist.index.tz_localize("UTC")
+    mock_fetch.return_value = hist
+    result = run_investment_backtest(
+        db,
+        start_date="2020-07-01",
+        end_date=None,
+        lump_sum=1000,
+        monthly_amount=0,
+        contribution_day=1,
+        legs=[{"ticker": "VTI", "allocation_pct": 100}],
+    )
+    assert result["total_invested"] == 1000
+    assert result["final_value"] > 0
+
+
+@patch("app.services.investment_simulator.fetch_history")
 def test_run_backtest_lump_sum_single_etf(mock_fetch, db):
     mock_fetch.return_value = _mock_history()
     result = run_investment_backtest(

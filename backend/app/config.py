@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     ml_enabled: bool = False
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     price_cache_ttl_minutes: int = 60
+    recommendation_ttl_minutes: int = 60
     rebalance_drift_threshold: float = 5.0
 
     @property

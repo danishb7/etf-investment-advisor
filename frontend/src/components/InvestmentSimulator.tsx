@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Play, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Play } from "lucide-react";
 import { api, type InvestmentScenario } from "@/api/client";
 import { AnimatedCard } from "./ui/AnimatedCard";
-import { PriceChart } from "./PriceChart";
+import { InlineError } from "./ui/InlineError";
 import { TickerSearch } from "./TickerSearch";
+import { InvestmentSimulatorDetail } from "./InvestmentSimulatorDetail";
+import { InvestmentSimulatorPlanCard } from "./InvestmentSimulatorPlanCard";
 
 type LegForm = {
   ticker: string;
@@ -23,6 +25,7 @@ export function InvestmentSimulator() {
   const [scenarios, setScenarios] = useState<InvestmentScenario[]>([]);
   const [selected, setSelected] = useState<InvestmentScenario | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "My investment plan",
     start_date: "2020-01-01",
@@ -55,10 +58,11 @@ export function InvestmentSimulator() {
 
   const saveAndRun = async () => {
     if (Math.abs(allocSum - 100) > 0.5) {
-      alert(`Allocations must sum to 100% (currently ${allocSum.toFixed(1)}%)`);
+      setError(`Allocations must sum to 100% (currently ${allocSum.toFixed(1)}%)`);
       return;
     }
     setLoading(true);
+    setError("");
     try {
       const created = await api.createInvestmentScenario({
         name: form.name,
@@ -74,10 +78,10 @@ export function InvestmentSimulator() {
           end_date: l.end_date || undefined,
         })),
       });
-      setSelected(created);
+      await selectScenario(created);
       load();
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -85,12 +89,13 @@ export function InvestmentSimulator() {
 
   const rerun = async (id: number) => {
     setLoading(true);
+    setError("");
     try {
       const updated = await api.runInvestmentScenario(id);
-      setSelected(updated);
+      await selectScenario(updated);
       load();
     } catch (e) {
-      alert((e as Error).message);
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
@@ -102,10 +107,19 @@ export function InvestmentSimulator() {
     load();
   };
 
-  const result = selected?.result;
+  const selectScenario = async (s: InvestmentScenario) => {
+    setSelected(s);
+    try {
+      const full = await api.getInvestmentScenario(s.id);
+      setSelected(full);
+    } catch {
+      /* list payload is enough if fetch fails */
+    }
+  };
 
   return (
     <div className="space-y-8">
+      <InlineError message={error} />
       <AnimatedCard>
         <h2 className="text-xl font-semibold mb-1">Investment Simulator</h2>
         <p className="text-sm text-muted-foreground mb-6">
@@ -255,96 +269,33 @@ export function InvestmentSimulator() {
         </button>
       </AnimatedCard>
 
-      {result && selected && (
-        <AnimatedCard>
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h3 className="font-semibold text-lg">{selected.name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {result.start_date} → {result.end_date}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => rerun(selected.id)} className="p-2 rounded-lg bg-muted" title="Re-run">
-                <RefreshCw size={16} />
-              </button>
-              <button onClick={() => deleteScenario(selected.id)} className="p-2 rounded-lg bg-muted text-negative">
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
-            <div>
-              <p className="text-xs text-muted-foreground">Total invested</p>
-              <p className="text-xl font-bold">${result.total_invested?.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Final value</p>
-              <p className="text-xl font-bold">${result.final_value?.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Return</p>
-              <p className={`text-xl font-bold ${(result.return_pct ?? 0) >= 0 ? "text-positive" : "text-negative"}`}>
-                {(result.return_pct ?? 0) > 0 ? "+" : ""}
-                {result.return_pct}%
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Max drawdown</p>
-              <p className="text-xl font-bold">{result.max_drawdown}%</p>
-            </div>
-          </div>
-          <PriceChart
-            data={(result.series as { date: string; value: number }[]).map((p) => ({
-              date: p.date,
-              close: p.value,
-            }))}
-          />
-          {result.contributions && (result.contributions as unknown[]).length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-sm font-medium mb-2">Contributions ({(result.contributions as unknown[]).length})</h4>
-              <ul className="text-xs text-muted-foreground max-h-32 overflow-y-auto space-y-1">
-                {(result.contributions as { date: string; amount: number }[]).map((c, i) => (
-                  <li key={i}>
-                    {c.date}: ${c.amount.toLocaleString()}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </AnimatedCard>
-      )}
-
       {scenarios.length > 0 && (
         <AnimatedCard>
-          <h3 className="font-semibold mb-4">Saved plans</h3>
+          <h3 className="font-semibold mb-2">Saved plans</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Select a plan to view ETF breakdowns, contribution history, and the performance chart.
+          </p>
           <ul className="space-y-2">
             {scenarios.map((s) => (
               <li key={s.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelected(s)}
-                  className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                    selected?.id === s.id ? "border-accent bg-accent/5" : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  <span className="font-medium">{s.name}</span>
-                  <span className="block text-xs text-muted-foreground mt-0.5">
-                    {s.start_date}
-                    {s.end_date ? ` → ${s.end_date}` : " → today"} · ${s.total_invested?.toLocaleString() ?? "—"} invested
-                    {s.return_pct != null && (
-                      <span className={s.return_pct >= 0 ? " text-positive" : " text-negative"}>
-                        {" "}
-                        · {s.return_pct > 0 ? "+" : ""}
-                        {s.return_pct}%
-                      </span>
-                    )}
-                  </span>
-                </button>
+                <InvestmentSimulatorPlanCard
+                  scenario={s}
+                  selected={selected?.id === s.id}
+                  onSelect={() => selectScenario(s)}
+                />
               </li>
             ))}
           </ul>
         </AnimatedCard>
+      )}
+
+      {selected && (
+        <InvestmentSimulatorDetail
+          scenario={selected}
+          onRerun={rerun}
+          onDelete={deleteScenario}
+          loading={loading}
+        />
       )}
     </div>
   );

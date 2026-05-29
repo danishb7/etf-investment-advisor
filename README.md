@@ -115,7 +115,8 @@ Backend: [http://127.0.0.1:8000](http://127.0.0.1:8000) · Frontend: [http://loc
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check (`ml_enabled` flag) |
 | `GET` / `PUT` | `/api/profile` | Investor profile |
-| `POST` | `/api/recommend` | Generate recommendations |
+| `GET` | `/api/recommend?force=` | Recommendations (cached up to `RECOMMENDATION_TTL_MINUTES`, invalidated when profile changes) |
+| `POST` | `/api/recommend` | Regenerate recommendations (Refresh) |
 | `GET` | `/api/recommend/history` | Past recommendation runs |
 | `GET` | `/api/etfs` | Curated universe list |
 | `GET` | `/api/etfs/search?q=` | Search curated + optional Yahoo lookup |
@@ -157,7 +158,16 @@ venv\Scripts\python.exe -m pytest
 
 The suite uses a temporary SQLite database and mocks market-data fetches where needed, so tests do not call Yahoo Finance or FRED live.
 
-GitHub Actions runs `pytest` on every push and pull request (see `.github/workflows/tests.yml`).
+GitHub Actions runs `pytest` with coverage (`--cov-fail-under=80`) on every push and pull request (see `.github/workflows/tests.yml`).
+
+Frontend unit tests: `cd frontend && npm test` (Vitest).
+
+### Scoring preferences
+
+- **ESG** (`esg_preference` on profile): +12 boost for ETFs tagged `esg: true` in the curated universe (e.g. ESGV, ESGU, SUSL, VSGX).
+- **Shariah**: +2 modest boost always for shariah-tagged funds (SPUS, HLAL, MNZL, SPTE, SPWO).
+
+Set `RECOMMENDATION_TTL_MINUTES=60` in `backend/.env` to control how long cached recommendations are reused.
 
 ## Troubleshooting
 
@@ -165,7 +175,7 @@ GitHub Actions runs `pytest` on every push and pull request (see `.github/workfl
 |-------|-------------|
 | `'uvicorn' is not recognized` | Use `venv\Scripts\python.exe -m uvicorn` (as in `run.bat`), or recreate venv: delete `backend\venv`, run `setup.bat` |
 | Macro `available: false` after adding FRED key | Open `/api/macro?force=true`, then restart backend; stale 24h cache is bypassed when key is set but cache was empty |
-| Backend reload spam / tracebacks in terminal | `--reload` watches all of `backend/` including `tests/`; safe to ignore, or restart with `stop.bat` + `run.bat` |
+| Backend reload spam / tracebacks in terminal | `run.bat` excludes `tests/` and `scripts/` from reload; restart with `stop.bat` + `run.bat` if needed |
 | Moved or renamed project folder | Delete `backend\venv` and run `setup.bat` again |
 
 ## Security

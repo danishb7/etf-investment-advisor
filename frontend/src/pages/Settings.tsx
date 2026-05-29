@@ -1,29 +1,50 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Profile } from "@/api/client";
 import { PageTransition } from "@/components/ui/PageTransition";
 import { AnimatedCard } from "@/components/ui/AnimatedCard";
+import { InlineError } from "@/components/ui/InlineError";
 
 export function Settings() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<Partial<Profile>>({});
-  const [history, setHistory] = useState<{ id: number; created_at: string }[]>([]);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    api.getProfile().then(setForm);
-    api.recommendHistory().then((r) => setHistory(r.runs));
-  }, []);
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: api.getProfile,
+  });
 
-  const save = async () => {
-    await api.updateProfile(form);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  const { data: historyData } = useQuery({
+    queryKey: ["recommend-history"],
+    queryFn: api.recommendHistory,
+  });
+
+  const displayForm = Object.keys(form).length > 0 ? form : profile ?? {};
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.updateProfile(displayForm),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["profile"], updated);
+      queryClient.invalidateQueries({ queryKey: ["recommend"] });
+      setForm(updated);
+      setSaved(true);
+      setError("");
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (e) => setError((e as Error).message),
+  });
+
+  const history = historyData?.runs ?? [];
 
   return (
     <PageTransition>
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+      <InlineError message={error} />
 
       <AnimatedCard className="mb-6 space-y-4">
         <h2 className="font-semibold">Investor profile</h2>
@@ -39,10 +60,10 @@ export function Settings() {
             <input
               type={type}
               className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background"
-              value={String((form as Record<string, unknown>)[key] ?? "")}
+              value={String((displayForm as Record<string, unknown>)[key] ?? "")}
               onChange={(e) =>
                 setForm({
-                  ...form,
+                  ...displayForm,
                   [key]: type === "number" ? +e.target.value : e.target.value,
                 })
               }
@@ -53,8 +74,8 @@ export function Settings() {
           Risk tolerance
           <select
             className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background"
-            value={form.risk_tolerance ?? "balanced"}
-            onChange={(e) => setForm({ ...form, risk_tolerance: e.target.value })}
+            value={displayForm.risk_tolerance ?? "balanced"}
+            onChange={(e) => setForm({ ...displayForm, risk_tolerance: e.target.value })}
           >
             <option value="conservative">Conservative</option>
             <option value="balanced">Balanced</option>
@@ -65,8 +86,8 @@ export function Settings() {
           Goal
           <select
             className="mt-1 w-full px-3 py-2 rounded-lg border border-border bg-background"
-            value={form.goal ?? "wealth_building"}
-            onChange={(e) => setForm({ ...form, goal: e.target.value })}
+            value={displayForm.goal ?? "wealth_building"}
+            onChange={(e) => setForm({ ...displayForm, goal: e.target.value })}
           >
             <option value="wealth_building">Wealth building</option>
             <option value="retirement">Retirement</option>
@@ -74,9 +95,21 @@ export function Settings() {
             <option value="income">Income</option>
           </select>
         </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={displayForm.esg_preference ?? false}
+            onChange={(e) => setForm({ ...displayForm, esg_preference: e.target.checked })}
+          />
+          Prefer ESG-focused ETFs (+12 score boost for tagged funds)
+        </label>
         <div className="flex gap-3">
-          <button onClick={save} className="px-6 py-2 rounded-lg bg-accent text-accent-foreground font-medium">
-            Save changes
+          <button
+            onClick={() => saveMutation.mutate()}
+            disabled={saveMutation.isPending}
+            className="px-6 py-2 rounded-lg bg-accent text-accent-foreground font-medium disabled:opacity-50"
+          >
+            {saveMutation.isPending ? "Saving…" : "Save changes"}
           </button>
           {saved && <span className="text-positive text-sm self-center">Saved!</span>}
           <button
