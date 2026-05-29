@@ -12,8 +12,20 @@ from sqlalchemy.orm import Session
 from app.services.market_data import fetch_history
 
 
+def _to_naive(ts: pd.Timestamp) -> pd.Timestamp:
+    """Normalize to timezone-naive UTC calendar dates for comparisons."""
+    ts = pd.Timestamp(ts)
+    if ts.tzinfo is not None:
+        ts = ts.tz_convert("UTC").tz_localize(None)
+    return ts.normalize()
+
+
 def _parse_date(s: str) -> pd.Timestamp:
-    return pd.to_datetime(s).normalize()
+    return _to_naive(pd.to_datetime(s))
+
+
+def _default_end_date() -> pd.Timestamp:
+    return _to_naive(pd.Timestamp(datetime.utcnow().date()))
 
 
 def _leg_active(leg: dict, dt: pd.Timestamp, scenario_start: pd.Timestamp, scenario_end: pd.Timestamp) -> bool:
@@ -112,7 +124,7 @@ def run_investment_backtest(
 
     contribution_day = max(1, min(28, contribution_day))
     scenario_start = _parse_date(start_date)
-    scenario_end = _parse_date(end_date) if end_date else pd.Timestamp.utcnow().normalize()
+    scenario_end = _parse_date(end_date) if end_date else _default_end_date()
     if scenario_end < scenario_start:
         raise ValueError("End date must be on or after start date")
 
@@ -123,7 +135,7 @@ def run_investment_backtest(
         if hist.empty or "Close" not in hist.columns:
             raise ValueError(f"No price history for {ticker}")
         s = hist["Close"].astype(float).copy()
-        s.index = pd.to_datetime(s.index).normalize()
+        s.index = pd.to_datetime(s.index).map(_to_naive)
         price_frames[ticker] = s.sort_index()
 
     all_dates = pd.DatetimeIndex([])
