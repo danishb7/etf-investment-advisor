@@ -13,6 +13,7 @@
 - `backend/.env`: API keys and secrets
 - `backend/advisor.db` or any `*.db` / `*.sqlite` file
 - `venv/`, `node_modules/`, `frontend/dist/`
+- `backend/models/*.joblib` or other trained ML artifacts
 - `.pytest_cache/`, `__pycache__/`
 
 Only commit `backend/.env.example` with empty placeholders.
